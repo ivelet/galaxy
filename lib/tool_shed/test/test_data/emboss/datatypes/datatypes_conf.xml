@@ -99,5 +99,9 @@
         <datatype extension="wordcount" type="galaxy.datatypes.data:Text" subclass="True"/>
         <datatype extension="data" type="galaxy.datatypes.data:Data" mimetype="application/octet-stream" max_optional_metadata_filesize="1048576" />
         <datatype extension="binary" type="galaxy.datatypes.binary:Binary" mimetype="application/octet-stream" max_optional_metadata_filesize="1048576" />
+        <datatype extension="h5mu" type="galaxy.datatypes.binary:Mudata" description="An HDF5-based mudata File" mimetype="application/octet-stream" display_in_upload="true"/>
     </registration>
+    <sniffers>
+        <sniffer type="galaxy.datatypes.binary:Mudata"/>
+    </sniffers>
 </datatypes>
