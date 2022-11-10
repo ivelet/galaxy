@@ -1548,12 +1548,14 @@ class Mudata(H5):
         visible=True,
         no_value=(0, 0),
     )
+    MetadataElement(name="mods_count", default=1, desc="n_mods", readonly=True, visible=True, no_value=0)
+    MetadataElement(name="mod", default='none', desc="mod", readonly=True, visible=True, no_value='none')
 
     def sniff(self, filename):
         if super().sniff(filename):
             try:
                 with h5py.File(filename, "r") as f:
-                    return all(attr in f for attr in ["var"])
+                    return all(attr in f for attr in ["mod"])
             except Exception:
                 return False
         return False
@@ -1570,6 +1572,8 @@ class Mudata(H5):
             dataset.metadata.shape = mudata_file.attrs.get("shape", dataset.metadata.shape)
             dataset.metadata.layers_count = len(mudata_file)
             dataset.metadata.layers_names = list(mudata_file.keys())
+            dataset.metadata.mod = list(mudata_file["mod"])
+            dataset.metadata.mods_count = len(list(mudata_file["mod"]))
 
             def _layercountsize(tmp, lennames=0):
                 "From TMP and LENNAMES, return layers, their number, and the length of one of the layers (all equal)."
@@ -1654,6 +1658,9 @@ class Mudata(H5):
                 elif hasattr(mudata_file["X"], "shape"):
                     dataset.metadata.shape = tuple(mudata_file["X"].shape)
 
+            if "mod" in dataset.metadata.layers_names:
+                tmp = mudata_file["mod"]
+
             if dataset.metadata.shape is None:
                 dataset.metadata.shape = (int(dataset.metadata.obs_size), int(dataset.metadata.var_size))
 
@@ -1672,7 +1679,8 @@ class Mudata(H5):
                     )
                 return ""
 
-            peekstr = "[n_obs x n_vars]\n    %d x %d" % tuple(tmp.shape)
+            peekstr = "[n_obs x n_vars]\n    (%d x %d)" % tuple((tmp.obs_count, tmp.var_count))
+            peekstr += _makelayerstrings("mod", tmp.mods_count, tmp.mod)
             peekstr += _makelayerstrings("obs", tmp.obs_count, tmp.obs_layers)
             peekstr += _makelayerstrings("var", tmp.var_count, tmp.var_layers)
             peekstr += _makelayerstrings("mods", tmp.mods_count, tmp.mod_layers)
