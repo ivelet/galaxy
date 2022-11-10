@@ -1484,6 +1484,25 @@ class Anndata(H5):
 class Mudata(H5):
     """
     Class describing an HDF5 mudata files:
+     >>> from galaxy.datatypes.sniff import get_test_fname
+    >>> Mudata().sniff(get_test_fname('mudata_test_1.h5mu'))
+    True
+    >>> Mudata().sniff(get_test_fname('test.mz5'))
+    False
+    >>> Mudata().sniff(get_test_fname('mudata_test_2.h5mu'))
+    True
+    >>> Mudata().sniff(get_test_fname('mudata_test_3.h5mu'))
+    True
+    >>> Mudata().sniff(get_test_fname('mudata_test_4.h5mu'))
+    True
+    >>> Mudata().sniff(get_test_fname('mudata_test_5.h5mu'))
+    True
+    >>> Mudata().sniff(get_test_fname('adata_0_7_4_small.h5ad'))
+    False
+    >>> Mudata().sniff(get_test_fname('adata_unk2.h5ad'))
+    False
+    >>> Mudata().sniff(get_test_fname('adata_unk.h5ad'))
+    False
     """
 
     file_ext = "h5mu"
@@ -1552,12 +1571,11 @@ class Mudata(H5):
     MetadataElement(name="mod", default='none', desc="mod", readonly=True, visible=True, no_value='none')
 
     def sniff(self, filename):
-        if super().sniff(filename):
-            try:
-                with h5py.File(filename, "r") as f:
-                    return all(attr in f for attr in ["mod"])
-            except Exception:
-                return False
+        try:
+            with h5py.File(filename, "r") as f:
+                return "mod" in list(f.keys())
+        except Exception:
+            return False
         return False
 
     def set_meta(self, dataset, overwrite=True, **kwd):
