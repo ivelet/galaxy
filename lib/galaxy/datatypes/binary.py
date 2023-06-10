@@ -1481,6 +1481,215 @@ class Anndata(H5):
         except Exception:
             return f"Binary Anndata file ({nice_size(dataset.get_size())})"
 
+class Mudata(H5):
+    """
+    Class describing an HDF5 anndata files: http://mudata.rtfd.io
+    """
+
+    file_ext = "h5mu"
+
+    MetadataElement(name="title", default="", desc="title", readonly=True, visible=True, no_value="")
+    MetadataElement(name="description", default="", desc="description", readonly=True, visible=True, no_value="")
+    MetadataElement(name="url", default="", desc="url", readonly=True, visible=True, no_value="")
+    MetadataElement(name="doi", default="", desc="doi", readonly=True, visible=True, no_value="")
+    MetadataElement(
+        name="anndata_spec_version", default="", desc="anndata_spec_version", readonly=True, visible=True, no_value=""
+    )
+    MetadataElement(name="creation_date", default=None, desc="creation_date", readonly=True, visible=True)
+    MetadataElement(name="layers_count", default=0, desc="layers_count", readonly=True, visible=True, no_value=0)
+    MetadataElement(
+        name="layers_names",
+        desc="layers_names",
+        default=[],
+        param=metadata.SelectParameter,
+        multiple=True,
+        readonly=True,
+    )
+    MetadataElement(name="row_attrs_count", default=0, desc="row_attrs_count", readonly=True, visible=True, no_value=0)
+    MetadataElement(name="obs_names", desc="obs_names", default=[], multiple=True, readonly=True)
+    MetadataElement(
+        name="obs_layers", desc="obs_layers", default=[], param=metadata.SelectParameter, multiple=True, readonly=True
+    )
+    MetadataElement(name="obs_count", default=0, desc="obs_count", readonly=True, visible=True, no_value=0)
+    MetadataElement(name="obs_size", default=-1, desc="obs_size", readonly=True, visible=True, no_value=0)
+    MetadataElement(
+        name="obsm_layers", desc="obsm_layers", default=[], param=metadata.SelectParameter, multiple=True, readonly=True
+    )
+    MetadataElement(name="obsm_count", default=0, desc="obsm_count", readonly=True, visible=True, no_value=0)
+    MetadataElement(
+        name="raw_var_layers",
+        desc="raw_var_layers",
+        default=[],
+        param=metadata.SelectParameter,
+        multiple=True,
+        readonly=True,
+    )
+    MetadataElement(name="raw_var_count", default=0, desc="raw_var_count", readonly=True, visible=True, no_value=0)
+    MetadataElement(name="raw_var_size", default=0, desc="raw_var_size", readonly=True, visible=True, no_value=0)
+    MetadataElement(
+        name="var_layers", desc="var_layers", default=[], param=metadata.SelectParameter, multiple=True, readonly=True
+    )
+    MetadataElement(name="var_count", default=0, desc="var_count", readonly=True, visible=True, no_value=0)
+    MetadataElement(name="var_size", default=-1, desc="var_size", readonly=True, visible=True, no_value=0)
+    MetadataElement(
+        name="varm_layers", desc="varm_layers", default=[], param=metadata.SelectParameter, multiple=True, readonly=True
+    )
+    MetadataElement(name="varm_count", default=0, desc="varm_count", readonly=True, visible=True, no_value=0)
+    MetadataElement(
+        name="uns_layers", desc="uns_layers", default=[], param=metadata.SelectParameter, multiple=True, readonly=True
+    )
+    MetadataElement(name="uns_count", default=0, desc="uns_count", readonly=True, visible=True, no_value=0)
+    MetadataElement(
+        name="shape",
+        default=(-1, -1),
+        desc="shape",
+        param=metadata.ListParameter,
+        readonly=True,
+        visible=True,
+        no_value=(0, 0),
+    )
+
+    def sniff(self, filename):
+        if super().sniff(filename):
+            try:
+                with h5py.File(filename, "r") as f:
+                    return all(attr in f for attr in ["X", "obs", "var"])
+            except Exception:
+                return False
+        return False
+
+    def set_meta(self, dataset, overwrite=True, **kwd):
+        super().set_meta(dataset, overwrite=overwrite, **kwd)
+        with h5py.File(dataset.file_name, "r") as mudata_file:
+            dataset.metadata.title = mudata_file.attrs.get("title")
+            dataset.metadata.description = mudata_file.attrs.get("description")
+            dataset.metadata.url = mudata_file.attrs.get("url")
+            dataset.metadata.doi = mudata_file.attrs.get("doi")
+            dataset.metadata.creation_date = mudata_file.attrs.get("creation_date")
+            dataset.metadata.shape = mudata_file.attrs.get("shape", dataset.metadata.shape)
+            dataset.metadata.layers_count = len(mudata_file)
+            dataset.metadata.layers_names = list(mudata_file.keys())
+
+            def _layercountsize(tmp, lennames=0):
+                "From TMP and LENNAMES, return layers, their number, and the length of one of the layers (all equal)."
+                if hasattr(tmp, "dtype"):
+                    layers = list(tmp.dtype.names)
+                    count = len(tmp.dtype)
+                    size = int(tmp.size)
+                else:
+                    layers = list(tmp.keys())
+                    count = len(layers)
+                    size = lennames
+                return (layers, count, size)
+
+            if "obs" in dataset.metadata.layers_names:
+                tmp = mudata_file["obs"]
+                obs_index = None
+                if "index" in tmp:
+                    obs_index = "index"
+                elif "_index" in tmp:
+                    obs_index = "_index"
+                # Determine cell labels
+                if obs_index:
+                    dataset.metadata.obs_names = list(tmp[obs_index])
+                elif hasattr(tmp, "dtype"):
+                    if "index" in tmp.dtype.names:
+                        dataset.metadata.obs_names = list(tmp["index"])
+                    elif "_index" in tmp.dtype.names:
+                        dataset.metadata.obs_names = list(tmp["_index"])
+                    else:
+                        log.warning("Could not determine cell labels for %s", self)
+                else:
+                    log.warning("Could not determine observation index for %s", self)
+
+                x, y, z = _layercountsize(tmp, len(dataset.metadata.obs_names))
+                dataset.metadata.obs_layers = x
+                dataset.metadata.obs_count = y
+                dataset.metadata.obs_size = z
+
+            if "obsm" in dataset.metadata.layers_names:
+                tmp = mudata_file["obsm"]
+                dataset.metadata.obsm_layers, dataset.metadata.obsm_count, _ = _layercountsize(tmp)
+
+            if "raw.var" in dataset.metadata.layers_names:
+                tmp = mudata_file["raw.var"]
+                # full set of genes would never need to be previewed
+                # dataset.metadata.raw_var_names = tmp["index"]
+                x, y, z = _layercountsize(tmp, len(tmp["index"]))
+                dataset.metadata.raw_var_layers = x
+                dataset.metadata.raw_var_count = y
+                dataset.metadata.raw_var_size = z
+
+            if "var" in dataset.metadata.layers_names:
+                tmp = mudata_file["var"]
+                var_index = None
+                if "index" in tmp:
+                    var_index = "index"
+                elif "_index" in tmp:
+                    var_index = "_index"
+                if var_index:
+                    x, y, z = _layercountsize(tmp, len(tmp[var_index]))
+                else:
+                    x, y, z = _layercountsize(tmp)
+
+                dataset.metadata.var_layers = x
+                dataset.metadata.var_count = y
+                dataset.metadata.var_size = z
+
+            if "varm" in dataset.metadata.layers_names:
+                tmp = mudata_file["varm"]
+                dataset.metadata.varm_layers, dataset.metadata.varm_count, _ = _layercountsize(tmp)
+
+            if "uns" in dataset.metadata.layers_names:
+                tmp = mudata_file["uns"]
+                dataset.metadata.uns_layers, dataset.metadata.uns_count, _ = _layercountsize(tmp)
+
+            # Resolving the problematic shape parameter
+            if "X" in dataset.metadata.layers_names:
+                # Shape we determine here due to the non-standard representation of 'X' dimensions
+                shape = mudata_file["X"].attrs.get("shape")
+                if shape is not None:
+                    dataset.metadata.shape = tuple(shape)
+                elif hasattr(mudata_file["X"], "shape"):
+                    dataset.metadata.shape = tuple(mudata_file["X"].shape)
+
+            if dataset.metadata.shape is None:
+                dataset.metadata.shape = (int(dataset.metadata.obs_size), int(dataset.metadata.var_size))
+
+    def set_peek(self, dataset):
+        if not dataset.dataset.purged:
+            tmp = dataset.metadata
+
+            def _makelayerstrings(layer, count, names):
+                "Format the layers."
+                if layer in tmp.layers_names:
+                    return "\n[%s]: %d %s\n    %s" % (
+                        layer,
+                        count,
+                        "layer" if count == 1 else "layers",
+                        ", ".join(sorted(names)),
+                    )
+                return ""
+
+            peekstr = "[n_obs x n_vars]\n    %d x %d" % tuple(tmp.shape)
+            peekstr += _makelayerstrings("obs", tmp.obs_count, tmp.obs_layers)
+            peekstr += _makelayerstrings("var", tmp.var_count, tmp.var_layers)
+            peekstr += _makelayerstrings("obsm", tmp.obsm_count, tmp.obsm_layers)
+            peekstr += _makelayerstrings("varm", tmp.varm_count, tmp.varm_layers)
+            peekstr += _makelayerstrings("uns", tmp.uns_count, tmp.uns_layers)
+
+            dataset.peek = peekstr
+            dataset.blurb = f"Mudata file ({nice_size(dataset.get_size())})"
+        else:
+            dataset.peek = "file does not exist"
+            dataset.blurb = "file purged from disk"
+
+    def display_peek(self, dataset):
+        try:
+            return dataset.peek
+        except Exception:
+            return f"Binary Mudata file ({nice_size(dataset.get_size())})"
+
 
 @build_sniff_from_prefix
 class Grib(Binary):
