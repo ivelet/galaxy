@@ -10,6 +10,9 @@ scripts/scramble/archives
 .venv
 .venv3
 
+# Planemo
+planemo
+
 # Python build artifacts
 build
 dist
