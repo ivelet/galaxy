@@ -994,6 +994,7 @@
     <sniffer type="galaxy.datatypes.binary:MCool"/>
     <sniffer type="galaxy.datatypes.binary:Loom"/>
     <sniffer type="galaxy.datatypes.binary:Anndata"/>
+    <sniffer type="galaxy.datatypes.binary:Mudata"/>
     <sniffer type="galaxy.datatypes.binary:Biom2"/>
     <sniffer type="galaxy.datatypes.binary:HexrdMaterials"/>
     <sniffer type="galaxy.datatypes.binary:H5"/>
